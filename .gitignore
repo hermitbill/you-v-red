@@ -1,9 +1,8 @@
 venv/
-entities/__pycache__
 .DS_Store
 *.pyc
 .env
 docs/build/
 entities/.DS_Store
-source/.DS_Store
+source/entities/__pycache__
 src/.gitignore
