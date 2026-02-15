@@ -68,7 +68,7 @@ class MonsterAi:
         :param movement_engine: Movement logic component.
         :param pattern_engine: Bullet Pattern component. 
         """
-        self.owner | object = None 
+        self.owner: object|None = None 
         self.combat=combat
         self.pattern = pattern_engine 
         self.movement_engine = movement_engine
