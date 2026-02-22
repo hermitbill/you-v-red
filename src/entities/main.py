@@ -846,6 +846,112 @@ class Player(Entity):
         self.rect.midbottom = self.collision_rect.midbottom
 
 
+class WorkerBee(Entity):
+    """
+    An enemy entity controlled by an optional phase machine.
+
+    Monsters can trigger phase transitions and manage 'Helper' sub monsters
+    that provide additional fire support.
+
+    ..note::
+        :ivar phase 
+        :vartype phase: Dict 
+        phase is a dictionary of instructions read from `level_build.py`. Its optional but 
+        then you would have to manual insert movement, helper and combat instrustions.
+        Monster would still render without components.    
+    """
+    def __init__(
+        self,
+        game: object,
+        name: str,
+        attack: int,
+        pos: tuple,
+        color: Tuple[int,int,int],
+        size: tuple,
+        combat: object | None = None,
+        life_stats: object | None = None,
+        ability: object | None = None,
+        monsterai: object | None = None,
+    ):
+        """
+        Docstring for __init__
+        
+        :param game: The main game engine instance.
+        :param name: Name of the Monster.
+        :param attack: Base attack power
+        :param pos: Initial (x, y) coordinates.
+        :param color: RGB color tuple.
+        :param size: Width and height tuple.
+        :param combat: Combat logic component.
+        :param life_stats: HP and status component.
+        :param monsterai: component that reads, edits and implement the phase machine.
+        """
+        super().__init__(game, name, attack, pos, color, size, combat, life_stats)
+
+        self.ability = ability
+        self.monster_ai = monsterai
+
+        self.image = pygame.Surface(self.size, pygame.SRCALPHA)
+        self.rect = self.image.get_rect(center=self.pos)
+
+        # =========================
+        # Safe Owner Wiring
+        # =========================
+
+        def safe_set_owner(component):
+            if component is not None:
+                component.owner = self
+
+        # Direct components
+        safe_set_owner(self.ability)
+        safe_set_owner(self.monster_ai)
+
+        # Nested AI components (safe even if missing)
+        if self.monster_ai is not None:
+            safe_set_owner(getattr(self.monster_ai, "movement_engine", None))
+            safe_set_owner(getattr(self.monster_ai, "pattern", None))
+            safe_set_owner(getattr(self.monster_ai, "combat", None))
+
+    def update(self, dt: float) -> None:
+        """
+        Updates monster components.
+
+        :param dt: Delta time (time passed since last frame).
+        :returns: None
+        """
+        super().update(dt)
+
+        if self.is_dead:
+            self.game.game_over()
+            return
+
+        # does allow #TODO undo
+        #if self.game.transition_sys.active:
+        #    return
+
+        self.monster_ai.update(dt)
+        self.rect.center = self.pos
+
+    def render(self, surf: pygame.Surface) -> None:
+        """
+        Draws the monster.
+
+        :param surf: The surface to draw the player onto.
+        :returns: None
+        """
+        super().render(surf)
+
+        if self.is_dead:
+            return
+
+        if self.life_stats:
+            self.life_stats.render(surf)
+
+        # if not self.is_dead:
+        self.monster_ai.render(surf)
+
+
+
 class Monster(Entity):
     """
     An enemy entity controlled by an optional phase machine.
@@ -912,8 +1018,11 @@ class Monster(Entity):
         if self.monster_ai:
             self.monster_ai.owner = self
             self.monster_ai.movement_engine.owner = self
-            self.monster_ai.pattern.owner = self
-            self.monster_ai.combat.owner = self
+
+            if self.monster_ai.pattern is not None:
+                self.monster_ai.pattern.owner = self
+            if self.monster_ai.combat:
+                self.monster_ai.combat.owner = self
 
         # Entity's Helper Components
         # TODO place this into the Helper object so you just call the Helper objects 
@@ -1237,4 +1346,5 @@ class Game:
             self.clock.tick(60)
 
 # Initiate Game 
-Game().run()
+if __name__ == "__main__":
+    Game().run()

@@ -60,7 +60,7 @@ class MonsterAi:
     
     """
 
-    def __init__(self, combat=object|None, movement_engine=object|None, pattern_engine=object|None):
+    def __init__(self, combat:object|None = None, movement_engine: object|None = None, pattern_engine: object|None = None):
         """
         Initiate the Monster Component Controller. 
         
@@ -116,6 +116,64 @@ class MonsterAi:
         :type surf: pygame.Surface
         """
         self.combat.render(surf)
+
+
+
+class WorkerAi:
+    """
+    The engine that manages the boss components. 
+
+    Handles
+    """""""
+        * apply instructions
+        * updates components 
+        * rendering 
+    
+    """
+
+    def __init__(self, combat:object|None = None, movement_engine: object|None = None, pattern_engine: object|None = None):
+        """
+        Initiate the Monster Component Controller. 
+        
+        :param combat: Combat logic component.
+        :param movement_engine: Movement logic component.
+        :param pattern_engine: Bullet Pattern component. 
+        """
+        self.owner: object|None = None 
+        self.combat=combat
+        self.pattern = pattern_engine 
+        self.movement_engine = movement_engine
+
+    def update(self, dt:float) -> None:
+        """
+        Runs the update function in the monsters components 
+        
+        :param dt: delta time
+        :type dt: float
+
+        returns
+        """""""
+        None
+        """
+
+        if self.movement_engine:
+            self.movement_engine.update(dt)
+
+        if self.pattern:
+            self.pattern.execute_patterns(dt)
+        
+        if self.combat:
+            self.combat.update()
+
+    def render(self, surf:pygame.Surface) -> None:
+        """
+        Draw bullets on to screen.
+        
+        :param surf: he Pygame surface to draw onto
+        :type surf: pygame.Surface
+        """
+        if self.combat:
+            self.combat.render(surf)
 
 class Movement:
     def __init__(self):
@@ -422,17 +480,6 @@ class Transition:
             self.timer = random.uniform(2, 4)
             self.end()
 
-
-    def render(self, surf):
-    #     if not self.active:
-    #         return 
-        
-    #     pos = self.owner.rect.midbottom
-    #     font = pygame.font.SysFont(None, 20)
-    #     text = str(self.daig)
-
-    #     surf.blit(font.render(text, True, (255, 255, 255)), (pos[0], pos[1] + 10))
-        pass
 
 class Helper:
     def __init__(self, enemy, game, offset, pattern=None, life=None):
