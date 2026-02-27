@@ -2,8 +2,8 @@ import pygame
 import math
 import sys
 
-from main import WorkerBee
-from state import WorkerAi
+from main import WorkerBee, Life, Lifebar
+from state import WorkerAi, PatternEngine, MonstersGun
 from world import ScrollSystem
 
 
@@ -17,7 +17,7 @@ class SpawnEvent:
         # movement,
         count,
         # spacing=40,
-        fire_pattern=None,
+        patterns=None,
     ):
         self.trigger = trigger
         self.enemy_type = enemy_type
@@ -26,7 +26,7 @@ class SpawnEvent:
         # self.movement = movement
         self.count = count
         # self.spacing = spacing
-        self.fire_pattern = fire_pattern
+        self.patterns = patterns or [] #TODO i dont like this 
         self.triggered = False
 
 
@@ -58,10 +58,20 @@ class StageTimeline:
 
     def execute(self, event):
         formation = event.formation
-
+        
         for i in range(event.count):
             spawn_pos = formation.get_position(i)
             movement_engine = formation.get_movement(i)
+            pattern_engine = PatternEngine()
+            
+            
+            for pattern_name, kwargs in event.patterns:
+                pattern_func = getattr(pattern_engine, pattern_name)
+                pattern_engine.add_pattern(pattern_func, **kwargs)
+
+            combat = MonstersGun()
+
+            ai = WorkerAi(combat=combat, movement_engine=movement_engine, pattern_engine=pattern_engine)
 
             enemy = WorkerBee(
                 game=self.game,
@@ -69,8 +79,9 @@ class StageTimeline:
                 attack=5,
                 pos=spawn_pos,
                 color=(225, 0, 0),
-                size=(20, 20),
-                monsterai=WorkerAi(movement_engine=movement_engine),
+                size=(10, 10),
+                life_stats=Life(hp=10),
+                monsterai=ai
             )
 
             self.game.entities.append(enemy)
@@ -125,29 +136,39 @@ class DiagonalMovement(BaseMovement):
 
 
 class StraightDownFormation:
-    def __init__(self, start_pos, spacing, speed):
+    def __init__(self, start_pos, stop_y, spacing, speed):
         self.start_pos = start_pos
         self.spacing = spacing
         self.speed = speed
         self.direction = pygame.Vector2(0, 1)
 
+        self.stop_y = stop_y
+
     def get_position(self, index):
         return self.start_pos + self.direction * self.spacing * index
 
     def get_movement(self, index):
-        return StraightDown(self.speed)
+        return StraightDown(self.speed, self.stop_y)
 
 
 class StraightDown(BaseMovement):
-    def __init__(self, speed):
+    def __init__(self, speed, stop_y=None):
         super().__init__()
         self.direction = pygame.Vector2(0, 1)
         self.speed = speed
         self.velocity = self.direction * self.speed
 
+        self.stop_y = stop_y
+
     def update(self, dt):
         super().update(dt)
+
+        if self.stop_y is not None and self.owner.pos.y >= self.stop_y:
+            return 
+         
         self.owner.pos += self.velocity * dt
+
+
 
 
 class RotationCircleFormation:
@@ -210,32 +231,49 @@ class RotatingCircle(BaseMovement):
         self.owner.pos = pygame.Vector2(x, y)
 
 
-events = [
+EVENTS = [
     SpawnEvent(
         trigger=100,
         enemy_type="grunt",
         formation=DiagonalFormation(
-            start_pos=(700, -100), spacing=60, angle_deg=135, speed=120
+            start_pos=(450, -150), spacing=60, angle_deg=135, speed=30
         ),
         count=5,
+        patterns=[('stack', dict(angle_deg=90, n=1, speed=10, spread=45, spread_rate=2))]
     ),
     SpawnEvent(
         trigger=50,
         enemy_type="grunt",
-        formation=StraightDownFormation(start_pos=(300, -100), spacing=40, speed=120),
+        formation=StraightDownFormation(start_pos=(150, -100), stop_y=50, spacing=40, speed=30),
         count=1,
+        patterns=[('spray', dict(angle_deg=90, n=4, speed=10, spread=60, spread_rate=1))]
+    ),
+        SpawnEvent(
+        trigger=200,
+        enemy_type="grunt",
+        formation=StraightDownFormation(start_pos=(150, -100), stop_y=None, spacing=40, speed=30),
+        count=1,
+        patterns=[('spray', dict(angle_deg=90, n=4, speed=10, spread=60, spread_rate=1))]
+    ),
+        SpawnEvent(
+        trigger=300,
+        enemy_type="grunt",
+        formation=StraightDownFormation(start_pos=(150, -100), stop_y=None, spacing=40, speed=30),
+        count=1,
+        patterns=[('directed', dict(n=1, speed=10, spread_rate=1))]
     ),
     SpawnEvent(
-        trigger=30,
+        trigger=1000,
         enemy_type="grunt",
         formation=RotationCircleFormation(
-            center=(700 // 2, -100),
-            radius=100,
+            center=(400 // 2, -100),
+            radius=50,
             count=5,
             rotation_speed=2,
-            drift_velocity=(0, 45),
+            drift_velocity=(0, 15),
         ),
         count=5,
+        patterns=[('spray', dict(angle_deg=90, n=3, speed=10, spread=60, spread_rate=2))]
     ),
 ]
 
@@ -251,7 +289,7 @@ class Gametest:
 
         self.scroll = ScrollSystem(speed=60)
         self.entities = []
-        self.game_level = StageTimeline(self, events, self.scroll)
+        self.game_level = StageTimeline(self, EVENTS, self.scroll)
 
     def run(self):
         while self.running:
@@ -283,5 +321,5 @@ class Gametest:
             pygame.display.update()
             self.clock.tick(60)
 
-
-Gametest().run()
+if __name__ == "__main__":
+    Gametest().run()

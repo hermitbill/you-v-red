@@ -4,8 +4,11 @@ import random
 import math
 from typing import List, Tuple
 
+from world import * 
 from state import * 
 from level_build import *
+from main2 import * 
+
 
 DIRECTION_KEYS = {
     pygame.K_RIGHT: "right",
@@ -577,8 +580,9 @@ class PlayerMovement:
         if not self.has_any_direction:
             return
 
-        # Game platform
-        bounds = self.owner.game.platform.rect
+        # Game platform TODO remove platform 
+        # bounds = self.owner.game.platform.rect
+        bounds = self.owner.game.display.get_rect()
 
         dx = self.keys["right"] - self.keys["left"]
         dy = self.keys["down"] - self.keys["up"]
@@ -894,9 +898,11 @@ class WorkerBee(Entity):
         self.image = pygame.Surface(self.size, pygame.SRCALPHA)
         self.rect = self.image.get_rect(center=self.pos)
 
-        # =========================
-        # Safe Owner Wiring
-        # =========================
+        self.exploded = False
+
+        # ================================
+        # Owner Wiring/ different approach
+        # ================================
 
         def safe_set_owner(component):
             if component is not None:
@@ -912,6 +918,9 @@ class WorkerBee(Entity):
             safe_set_owner(getattr(self.monster_ai, "pattern", None))
             safe_set_owner(getattr(self.monster_ai, "combat", None))
 
+    def is_visible(self):
+        return self.game.display.get_rect().colliderect(self.rect)
+
     def update(self, dt: float) -> None:
         """
         Updates monster components.
@@ -922,7 +931,12 @@ class WorkerBee(Entity):
         super().update(dt)
 
         if self.is_dead:
-            self.game.game_over()
+            #self.game.game_over() #TODO remove from list
+            # play dead animation
+            # self.game.entities.pop(entity)
+            if not self.exploded:
+                self.game.explosions.append(Explosion(self.rect))
+                self.exploded = True
             return
 
         # does allow #TODO undo
@@ -1152,6 +1166,11 @@ class Game:
         self.running = True
         self.screenshake = 0
 
+        #Scroll system & Level
+        self.explosions = []
+        self.scroll = ScrollSystem(speed=60)
+        self.game_level = StageTimeline(self, EVENTS, self.scroll)
+
         # System States 
         self.transition_sys = Transition()
         self.collision_on = True
@@ -1171,7 +1190,7 @@ class Game:
             self.monster_bullets.add(Bullet(self, design=YellowBullet()))
 
         # Object initialization
-        self.platform = Platform()
+        # self.platform = Platform()
         self.player = Player(
             self,
             "player",
@@ -1183,18 +1202,18 @@ class Game:
             movement=PlayerMovement(),
             life_stats=PlayerLifebar(5),
         )
-        self.enemy = Monster(
-            self,
-            "boss",
-            5,
-            [135, 50],
-            (195, 0, 0),
-            (30, 30),
-            life_stats=Life(hp=150),
-            phase_machine=PhaseMachine(level=level),
-            monsterai=MonsterAi(MonstersGun(), Movement(), PatternEngine()),
-        )
-        self.entities.extend([self.player, self.enemy])
+        # self.enemy = Monster(
+        #     self,
+        #     "boss",
+        #     5,
+        #     [135, 50],
+        #     (195, 0, 0),
+        #     (30, 30),
+        #     life_stats=Life(hp=150),
+        #     phase_machine=PhaseMachine(level=level),
+        #     monsterai=MonsterAi(MonstersGun(), Movement(), PatternEngine()),
+        # )
+        self.entities.extend([self.player]) # self.enemy
 
     def collisionSystem(self) -> None:
         """
@@ -1234,31 +1253,48 @@ class Game:
                     if e.is_dead:
                         continue
 
-                    if b.rect.colliderect(e.rect):
-                        # Damge the boss only if helpers are down
-                        if e.name == "boss" and not e.helpers_active:
+                    hit = False
+
+                    # Check Boss Helpers
+                    if hasattr(e, "helpers_active") and e.helpers_active:
+                        for help in e.helpers.copy():
+                            if b.rect.colliderect(help.rect):
+                                self.screenshake = max(10, self.screenshake)
+                                help.life_stats.take_damage(b.damage)
+                                hit = True
+                                break
+
+                        if hit:
+                            b.active = False
+                            b.collided()
+                            break #stop checking other enemies 
+
+                    
+                    if e.name == "grunt" and b.rect.colliderect(e.rect):
+                        self.screenshake = max(10, self.screenshake)
+                        e.life_stats.take_damage(b.damage)
+                        e.flash_state = True
+                        hit = True
+                       
+                    # Damge the boss only if helpers are down
+                    elif e.name == "boss" and not e.helpers_active and b.rect.colliderect(e.rect):
                             self.screenshake = max(10, self.screenshake)
                             e.life_stats.take_damage(b.damage)
                             e.flash_state = True
+                            hit = True
+
+                    if hit:
                         b.active = False
                         b.collided()
                         break
                     
-                    # Check Boss Helpers
-                    if hasattr(e, "helpers_active"):
-                        if e.helpers_active:
-                            for h in e.helpers.copy():
-                                if b.rect.colliderect(h.rect):
-                                    self.screenshake = max(10, self.screenshake)
-                                    h.life_stats.take_damage(b.damage)
-                                    b.active = False
-                                    b.collided()
-                            break
-        
+                    
         # Keep active bullets
         self.bullets = [
             b for b in self.bullets if b.active or b.bullet_effect or b.collision_effect
         ]
+
+        self.entities = [e for e in self.entities if not (e.is_dead and e.exploded)]
 
     def game_over(self) -> None:
         """
@@ -1298,10 +1334,13 @@ class Game:
         """
         while self.running:
             self.display.fill((18, 18, 28))
-            dt = self.clock.tick(60) / 1000.0
+            dt = self.clock.tick(50) / 1000.0
 
             # Delay screenshake over time
             self.screenshake = max(0, self.screenshake - 1)
+            
+            self.scroll.update(dt)
+            self.game_level.update()
 
             # Event handling 
             for event in pygame.event.get():
@@ -1316,23 +1355,46 @@ class Game:
                 self.player.movement.handle_input(event)
 
             # Logic Updates 
-            self.enemy.update(dt)
-            self.player.update(dt)
-            self.transition_sys.update(dt)
+            # self.enemy.update(dt) #TODO REMOVE 
+            #self.player.update(dt)
+
+            for e in self.entities:
+                e.update(dt)
+
+            for exp in self.explosions:
+                exp.update(dt)
+
+            self.explosions = [exp for exp in self.explosions if not exp.finished]
+
+            # self.transition_sys.update(dt) # TODO Enemy uses transition
 
             for b in self.bullets.copy():
                 b.update()
 
             self.collisionSystem()
 
+            
+
             # Rendering
-            self.platform.render(self.display)
-            self.player.render(self.display)
-            self.enemy.render(self.display)
+            #self.platform.render(self.display) #TODO remove platform 
+            #self.player.render(self.display)
+            # self.enemy.render(self.display)
+
+            for e in self.entities:
+                e.render(self.display)
+
+            for exp in self.explosions:
+                exp.draw(self.display)
 
             for b in self.bullets.copy():
                 b.render(self.display)
 
+            # Debug scroll distance
+            font = pygame.font.SysFont(None, 12)
+            text = font.render(
+                f"scroll distance: {int(self.scroll.distance)}", False, (200, 200, 200), (0,0,0)
+            )
+            self.display.blit(text, (210, 290))
 
             screenshake_offset = (
                 random.random() * self.screenshake - self.screenshake / 2,
