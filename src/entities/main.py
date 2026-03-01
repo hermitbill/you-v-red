@@ -6,8 +6,8 @@ from typing import List, Tuple
 
 from world import * 
 from state import * 
-from level_build import *
-from main2 import * 
+from boss_config import *
+from  level_eng import * 
 
 
 DIRECTION_KEYS = {
