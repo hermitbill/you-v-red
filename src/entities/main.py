@@ -121,6 +121,9 @@ class BulletAK:
         if not self.active:
             pass
         else:
+            # store previous position b4 moving
+            self.prev_pos = self.pos.copy()
+
         # Advance position based on velocity
             self.pos += self.velocity * self.speed
             self.rect.center = self.pos
@@ -147,6 +150,17 @@ class BulletAK:
             angle = random.uniform(0, math.pi * 2)
             speed = random.uniform(2, 3)
             self.collision_effect.append(Spark(pos, angle, speed, (255, 255, 255)))
+
+    
+    def check_collision(self, target) -> bool:
+        if not self.active:
+            return False
+        
+        start = self.prev_pos
+        end = self.pos
+
+        return target.rect.clipline(start, end) != () 
+    
 
     def render(self, surf: pygame.Surface) -> None:
         """
@@ -964,6 +978,8 @@ class WorkerBee(Entity):
         # if not self.is_dead:
         self.monster_ai.render(surf)
 
+        pygame.draw.rect(surf, (0,0,255), self.rect, 1)
+
 
 
 class Monster(Entity):
@@ -1270,14 +1286,14 @@ class Game:
                             break #stop checking other enemies 
 
                     
-                    if e.name == "grunt" and b.rect.colliderect(e.rect):
+                    if e.name == "grunt" and b.check_collision(e):
                         self.screenshake = max(10, self.screenshake)
                         e.life_stats.take_damage(b.damage)
                         e.flash_state = True
                         hit = True
                        
                     # Damge the boss only if helpers are down
-                    elif e.name == "boss" and not e.helpers_active and b.rect.colliderect(e.rect):
+                    elif e.name == "boss" and not e.helpers_active and b.check_collision(e):
                             self.screenshake = max(10, self.screenshake)
                             e.life_stats.take_damage(b.damage)
                             e.flash_state = True
@@ -1372,8 +1388,6 @@ class Game:
                 b.update()
 
             self.collisionSystem()
-
-            
 
             # Rendering
             #self.platform.render(self.display) #TODO remove platform 
