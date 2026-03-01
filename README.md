@@ -41,6 +41,12 @@ collision sparks mark impacts instantly.
 - Attack: Spacebar
 - Quit: Window
 
+## Current State
+
+The project is no longer just a playable game. It has been rebuilt into a modular engine system.
+
+The gameplay can still be put together using the existing systems, but the main play loop has been redesigned to improve the overall structure and organization.
+
 ## Running the Game
 
 ```bash
@@ -56,6 +62,13 @@ You vs Red is a **work in progress**.
 
 ## Changelog
 
+### v1.1
+
+- added Level building engine.
+- removed immediate boss fight and fighting platform.
+- changed the player's bullet collision from rect to rect collision to line to rect collision.
+- added particle effect to enemies.
+
 ### v1.0
 
-intial fork
+- intial fork.

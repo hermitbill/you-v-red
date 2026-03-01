@@ -1,32 +1,23 @@
 import pygame
 import math
-import sys
 
-from main import WorkerBee
-from state import WorkerAi
-from world import ScrollSystem
-
+from main import WorkerBee, Life
+from state import WorkerAi, PatternEngine, MonstersGun
 
 class SpawnEvent:
     def __init__(
         self,
         trigger,
         enemy_type,
-        # start_pos,
         formation,
-        # movement,
         count,
-        # spacing=40,
-        fire_pattern=None,
+        patterns=None,
     ):
         self.trigger = trigger
         self.enemy_type = enemy_type
-        # self.start_pos = pygame.Vector2(start_pos)
         self.formation = formation
-        # self.movement = movement
         self.count = count
-        # self.spacing = spacing
-        self.fire_pattern = fire_pattern
+        self.patterns = patterns or [] #TODO 
         self.triggered = False
 
 
@@ -48,9 +39,6 @@ class StageTimeline:
 
         event = self.events[self.index]
 
-        # check once per loop???? or always check?
-        # answer: use an order list
-
         if not event.triggered and self.scroll.distance >= event.trigger:
             self.execute(event)
             event.triggered = True
@@ -58,10 +46,20 @@ class StageTimeline:
 
     def execute(self, event):
         formation = event.formation
-
+        
         for i in range(event.count):
             spawn_pos = formation.get_position(i)
             movement_engine = formation.get_movement(i)
+            pattern_engine = PatternEngine()
+            
+            
+            for pattern_name, kwargs in event.patterns:
+                pattern_func = getattr(pattern_engine, pattern_name)
+                pattern_engine.add_pattern(pattern_func, **kwargs)
+
+            combat = MonstersGun()
+
+            ai = WorkerAi(combat=combat, movement_engine=movement_engine, pattern_engine=pattern_engine)
 
             enemy = WorkerBee(
                 game=self.game,
@@ -69,14 +67,18 @@ class StageTimeline:
                 attack=5,
                 pos=spawn_pos,
                 color=(225, 0, 0),
-                size=(20, 20),
-                monsterai=WorkerAi(movement_engine=movement_engine),
+                size=(10, 10),
+                life_stats=Life(hp=10),
+                monsterai=ai
             )
 
             self.game.entities.append(enemy)
 
 
 class BaseMovement:
+    """
+    represents entities movement formation link.
+    """
     def __init__(self):
         self.owner = None
         self.time = 0
@@ -106,9 +108,6 @@ class DiagonalMovement(BaseMovement):
     """
     Diagonal movement component
     """
-
-    # im getting is a movement mechanic
-
     def __init__(self, angle_deg: int, speed: float):
         super().__init__()
 
@@ -125,30 +124,37 @@ class DiagonalMovement(BaseMovement):
 
 
 class StraightDownFormation:
-    def __init__(self, start_pos, spacing, speed):
+    def __init__(self, start_pos, stop_y, spacing, speed):
         self.start_pos = start_pos
         self.spacing = spacing
         self.speed = speed
         self.direction = pygame.Vector2(0, 1)
 
+        self.stop_y = stop_y
+
     def get_position(self, index):
         return self.start_pos + self.direction * self.spacing * index
 
     def get_movement(self, index):
-        return StraightDown(self.speed)
+        return StraightDown(self.speed, self.stop_y)
 
 
 class StraightDown(BaseMovement):
-    def __init__(self, speed):
+    def __init__(self, speed, stop_y=None):
         super().__init__()
         self.direction = pygame.Vector2(0, 1)
         self.speed = speed
         self.velocity = self.direction * self.speed
 
+        self.stop_y = stop_y
+
     def update(self, dt):
         super().update(dt)
-        self.owner.pos += self.velocity * dt
 
+        if self.stop_y is not None and self.owner.pos.y >= self.stop_y:
+            return 
+         
+        self.owner.pos += self.velocity * dt
 
 class RotationCircleFormation:
     def __init__(self, center, radius, count, rotation_speed, drift_velocity=(0, 0)):
@@ -210,78 +216,65 @@ class RotatingCircle(BaseMovement):
         self.owner.pos = pygame.Vector2(x, y)
 
 
-events = [
+EVENTS = [
     SpawnEvent(
         trigger=100,
         enemy_type="grunt",
         formation=DiagonalFormation(
-            start_pos=(700, -100), spacing=60, angle_deg=135, speed=120
+            start_pos=(450, -150), spacing=60, angle_deg=135, speed=30
         ),
         count=5,
+        patterns=[('directed', dict(n=1, spread_rate=2, speed=10))]
     ),
     SpawnEvent(
         trigger=50,
         enemy_type="grunt",
-        formation=StraightDownFormation(start_pos=(300, -100), spacing=40, speed=120),
+        formation=StraightDownFormation(start_pos=(150, -100), stop_y=50, spacing=40, speed=30),
         count=1,
+        #patterns=[('directed', dict(n=10, spread_rate=2, speed=60))]
+        patterns=[('spray', dict(angle_deg=90, n=4, speed=10, spread=20, spread_rate=2))] # 60fps
+    ),
+        SpawnEvent(
+        trigger=3000,
+        enemy_type="grunt",
+        formation=StraightDownFormation(start_pos=(150, -100), stop_y=None, spacing=40, speed=30),
+        count=1,
+        patterns=[('ring', dict(n_bullets=6, speed=10, spread_rate=1))]
+    ),
+        SpawnEvent(
+        trigger=2000,
+        enemy_type="grunt",
+        formation=StraightDownFormation(start_pos=(150, -100), stop_y=None, spacing=40, speed=30),
+        count=1,
+        patterns=[('directed', dict(n=3, spread_rate=2, speed=10))]
     ),
     SpawnEvent(
-        trigger=30,
+        trigger=1400,
         enemy_type="grunt",
         formation=RotationCircleFormation(
-            center=(700 // 2, -100),
-            radius=100,
+            center=(400 // 2, -100),
+            radius=50,
             count=5,
             rotation_speed=2,
-            drift_velocity=(0, 45),
+            drift_velocity=(0, 15),
         ),
         count=5,
+        patterns=[('spray', dict(angle_deg=90, n=3, speed=10, spread=25, spread_rate=2))]
+    ),
+        SpawnEvent(
+        trigger=3000,
+        enemy_type="grunt",
+        formation=StraightDownFormation(start_pos=(10, -100), stop_y=None, spacing=30, speed=10),
+        count=3,
+        patterns=[('stack', dict(angle_deg=0, speed=10, n=2 ,spread_rate=1))]
+    ),
+        
+        SpawnEvent(
+        trigger=3000,
+        enemy_type="grunt",
+        formation=StraightDownFormation(start_pos=(290, -100), stop_y=None, spacing=30, speed=10),
+        count=3,
+        patterns=[('stack', dict(angle_deg=180, speed=10, n=2 ,spread_rate=1))]
     ),
 ]
 
-
-class Gametest:
-    # mini test
-    def __init__(self):
-        pygame.init()
-        self.screen = pygame.display.set_mode((600, 600))
-        self.display = pygame.Surface((300, 300))
-        self.clock = pygame.time.Clock()
-        self.running = True
-
-        self.scroll = ScrollSystem(speed=60)
-        self.entities = []
-        self.game_level = StageTimeline(self, events, self.scroll)
-
-    def run(self):
-        while self.running:
-            self.screen.fill((18, 18, 28))
-            dt = self.clock.tick(60) / 1000.0
-
-            self.scroll.update(dt)
-            self.game_level.update()
-
-            # Event handling
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    pygame.quit()
-                    sys.exit()
-
-            for e in self.entities:
-                e.update(dt)
-
-            for e in self.entities:
-                e.render(self.screen)
-
-            # Debug scroll distance
-            font = pygame.font.SysFont(None, 24)
-            text = font.render(
-                f"scroll distance: {int(self.scroll.distance)}", True, (200, 200, 200)
-            )
-            self.screen.blit(text, (10, 10))
-
-            pygame.display.update()
-            self.clock.tick(60)
-
-
-Gametest().run()
