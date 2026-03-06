@@ -4,6 +4,6 @@ __pycache__/
 *.pyc
 .env
 docs/build/
-entities/.DS_Store
-source/entities/__pycache__
+src/entities/.DS_Store
+src/entities/__pycache__
 src/.gitignore

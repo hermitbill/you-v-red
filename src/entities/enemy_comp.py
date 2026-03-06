@@ -1,0 +1,345 @@
+import pygame
+import math 
+import random
+ 
+class PhaseMachine():
+    """
+    Respesent phase 
+    
+    Handles
+    """""""
+        * selects the configuration base on hp ratio.
+    """
+    def __init__(self, level:dict):
+        """
+        Initiate Phase Configuration component.
+        
+        :param level: a dictionary of configuration dictionary.
+        :type level: dict
+        """
+
+        self.owner: object = None
+        self.level: dict = level
+        self.currentPhase_key: dict = None
+
+
+    def pick_phase(self) -> dict|None:
+        """
+        Pick the apropriate configuration.
+        
+        :return: a configuration dictionary 
+        :rtype: dict
+        """
+
+        ratio = self.owner.life_stats.hp / self.owner.life_stats.max_hp 
+
+        if self.currentPhase_key is not None:
+            low, high  = self.level[self.currentPhase_key]['hp_ratio']
+            if low <= ratio <= high:
+                return None
+
+        for key, phase in self.level.items():
+            low, high = phase['hp_ratio']
+            if low <= ratio <= high:
+                self.currentPhase_key = key
+                return phase
+
+        return None 
+    
+class MonsterAi:
+    """
+    The engine that manages the boss components. 
+
+    Handles
+    """""""
+        * apply instructions
+        * updates components 
+        * rendering 
+    
+    """
+
+    def __init__(self, combat:object|None = None, movement_engine: object|None = None, pattern_engine: object|None = None):
+        """
+        Initiate the Monster Component Controller. 
+        
+        :param combat: Combat logic component.
+        :param movement_engine: Movement logic component.
+        :param pattern_engine: Bullet Pattern component. 
+        """
+        self.owner: object|None = None 
+        self.combat=combat
+        self.pattern = pattern_engine 
+        self.movement_engine = movement_engine
+        self.movement_pattern = None 
+
+    def apply_phase(self, phase:dict) -> None:
+        """
+        Feed the data in the phase definition to the monster components.
+        
+        :param phase: a configuration dictionary 
+        :type phase: dict
+        """
+
+        self.pattern.active_pattern.clear()
+        for name, kwargs in phase['patterns']:
+            func = getattr(self.pattern, name)
+            self.pattern.add_pattern(func, **kwargs)
+
+        movement_pattern = phase['movement']
+        func = getattr(self.movement_engine, movement_pattern)
+        self.movement_pattern = func
+
+    def update(self, dt:float) -> None:
+        """
+        Runs the update function in the monsters components 
+        
+        :param dt: delta time
+        :type dt: float
+
+        returns
+        """""""
+        None
+
+        """
+        self.movement_pattern()
+        self.movement_engine.update()
+        self.pattern.execute_patterns(dt)
+        self.combat.update()
+
+    def render(self, surf:pygame.Surface) -> None:
+        """
+        Draw bullets on to screen.
+        
+        :param surf: he Pygame surface to draw onto
+        :type surf: pygame.Surface
+        """
+        self.combat.render(surf)
+
+
+
+class WorkerAi:
+    """
+    The engine that manages the boss components. 
+
+    Handles
+    """""""
+        * apply instructions
+        * updates components 
+        * rendering 
+    
+    """
+
+    def __init__(self, movement_engine: object|None = None, pattern_engine: object|None = None):
+        """
+        Initiate the Monster Component Controller. 
+        
+        :param combat: Combat logic component.
+        :param movement_engine: Movement logic component.
+        :param pattern_engine: Bullet Pattern component. 
+        """
+        self.owner: object|None = None 
+        #self.combat=combat
+        self.pattern = pattern_engine 
+        self.movement_engine = movement_engine
+
+        #TODO should I set owner??? NO entity does that 
+
+
+    def update(self, dt:float) -> None:
+        """
+        Runs the update function in the monsters components 
+        
+        :param dt: delta time
+        :type dt: float
+
+        returns
+        """""""
+        None
+        """
+
+        if self.movement_engine:
+            self.movement_engine.update(dt)
+
+        if self.pattern and self.owner.is_visible():
+            self.pattern.execute_patterns(dt)
+        
+        # if self.combat:
+        #     self.combat.update(dt)
+
+    # def render(self, surf:pygame.Surface) -> None:
+    #     """
+    #     Draw bullets on to screen.
+        
+    #     :param surf: he Pygame surface to draw onto
+    #     :type surf: pygame.Surface
+    #     """
+    #     if self.combat:
+    #         self.combat.render(surf)
+
+class BossMovement:
+    def __init__(self):
+        """
+        Initiates movement component
+        """
+
+        self.owner = None
+        self.current_movement = None
+        self.velocity = None
+        self.start = pygame.Vector2(0,0)
+        self.speed = 0.0
+
+        self.movement = {
+            'left_right': self.left_right
+        }
+        pass
+
+    def left_right(self):
+        right = 100
+        left = -100
+
+        if self.velocity is None or self.velocity == pygame.Vector2(0,0):
+            self.velocity = pygame.Vector2(1,0)
+            self.speed = 1
+
+        self.start.x += self.velocity.x * self.speed
+
+        if self.start.x >= right:
+            self.start.x = right
+            self.velocity.x *= -1
+
+        if self.start.x <= left:
+            self.start.x = left
+            self.velocity.x *= -1
+        
+        return self.velocity # velocity 
+    
+    def stand_still(self):
+        if self.owner.pos != pygame.Vector2(135, 50):
+            self.owner.pos = pygame.Vector2(135, 50) # return to origin
+            self.owner.life_stats.update() 
+
+        self.velocity = pygame.Vector2(0,0)
+        return  
+    
+    def update(self):
+
+        self.owner.pos.x = self.owner.pos.x + self.velocity.x 
+        self.owner.pos.y =   self.owner.pos.y + self.velocity.y
+
+        self.owner.rect.topleft = self.owner.pos
+        self.owner.pos = pygame.Vector2(self.owner.rect.topleft)
+
+
+
+class MonstersGun:
+    def __init__(self):
+        self.owner = None
+
+    def update(self, dt):
+        for b in self.owner.game.monster_bullets:
+            if b.active:
+                b.update(dt)
+
+    def render(self, surf):
+        if self.owner.game.transition_sys.active:
+            for b in self.owner.game.monster_bullets:
+                b.active = False 
+            return
+        
+        for b in self.owner.game.monster_bullets:
+            if b.active:
+                surf.blit(b.image, b.rect) #special_flags=pygame.BLEND_RGBA_ADD)
+
+
+    
+
+class Transition:
+    #?????? might be a function in boss 
+    def __init__(self):
+        self.owner = None 
+        self.active = False 
+        self.daig = 0 
+        self.timer = random.uniform(1, 2)
+
+    def start(self, owner:None):
+        self.owner = owner 
+        self.active = True
+        self.daig = 0 
+        self.owner.game.collision_on = False 
+        self.owner.game.can_fire = False 
+        pass
+
+    def end(self):
+        self.active = False
+        self.owner.game.collision_on = True 
+        self.owner.game.can_fire = True  
+        pass 
+    
+    def update(self, dt):
+        self.timer -= dt
+        if self.timer <= 0:
+            self.timer = random.uniform(2, 4)
+            self.end()
+
+
+class Helper:
+    def __init__(self, enemy, game, offset, pattern=None, life=None):
+        """
+        offset: (dx, dy) relative to enemy.position
+        """
+        self.enemy = enemy #owner of the helper
+        self.game = game
+        self.offset = pygame.Vector2(offset)
+        self.size = (20, 20)
+        self.color = (255, 255, 255)
+        self.active = False 
+        self.is_dead = False #
+
+        # The helper's own image and rect
+        self.image = pygame.Surface(self.size, pygame.SRCALPHA)
+        self.rect = self.image.get_rect()
+        self.position = pygame.Vector2(0, 0)
+        self.pattern = pattern 
+        self.life_stats = life 
+
+        if pattern:
+            self.pattern.owner = self
+            #self.stack = PatternInstance(self.pattern.directed, dict(n=1, speed=2, spread=45, spread_rate=0.5)) # rename TODO
+            self.pattern.add_pattern(self.pattern.directed, **dict(n=1, speed=2, spread=45, spread_rate=0.5))
+
+        if self.life_stats:
+            self.life_stats.owner = self
+            self.is_dead = self.life_stats.is_dead
+
+    def update(self, dt):
+        # LIFEBAR
+        if self.active:
+            self.life_stats.update()
+            # self.stack = PatternInstance(self.pattern.directed, dict(n=1, speed=2, spread=45, spread_rate=0.5)) # rename TODO
+            self.pattern.execute_patterns(dt)
+
+        self.position = self.enemy.pos + self.offset
+        self.rect.topleft = self.position
+
+        if self.is_dead:
+            self.enemy.helpers.remove(self)
+            pass
+
+
+    def render(self, surf):
+        self.image.fill((0, 0, 0, 0))
+
+        if self.active: # gets passed by the phase 
+            self.life_stats.render(surf)
+        
+        if not self.is_dead:
+            pygame.draw.rect(
+                self.image,
+                self.color,
+                pygame.Rect(0, 0, self.size[0], self.size[1]),
+                1
+            ) # not puting your 
+            
+            surf.blit(self.image, self.position)
+
+            
