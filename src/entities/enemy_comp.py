@@ -138,11 +138,8 @@ class WorkerAi:
         :param pattern_engine: Bullet Pattern component. 
         """
         self.owner: object|None = None 
-        #self.combat=combat
         self.pattern = pattern_engine 
         self.movement_engine = movement_engine
-
-        #TODO should I set owner??? NO entity does that 
 
 
     def update(self, dt:float) -> None:
@@ -163,18 +160,6 @@ class WorkerAi:
         if self.pattern and self.owner.is_visible():
             self.pattern.execute_patterns(dt)
         
-        # if self.combat:
-        #     self.combat.update(dt)
-
-    # def render(self, surf:pygame.Surface) -> None:
-    #     """
-    #     Draw bullets on to screen.
-        
-    #     :param surf: he Pygame surface to draw onto
-    #     :type surf: pygame.Surface
-    #     """
-    #     if self.combat:
-    #         self.combat.render(surf)
 
 class BossMovement:
     def __init__(self):

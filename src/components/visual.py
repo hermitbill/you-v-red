@@ -239,7 +239,7 @@ class Explosion:
         if self.time > self.duration and not self.particles and not self.shards:
             self.finished = True
 
-    def draw(self, surf):
+    def render(self, surf):
         # camera shake offset
         cam = pygame.Vector2(0, 0)
         if self.camera_shake > 0:

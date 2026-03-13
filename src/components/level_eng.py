@@ -1,5 +1,5 @@
 import pygame
-import math
+import math, random 
 
 from components.pattern import PatternEngine
 from entities.entity import WorkerBee, Life
@@ -10,12 +10,16 @@ class SpawnEvent:
         self,
         trigger,
         enemy_type,
+        size,
+        hp,
         formation,
         count,
         patterns=None,
     ):
         self.trigger = trigger
         self.enemy_type = enemy_type
+        self.size = size 
+        self.hp = hp 
         self.formation = formation
         self.count = count
         self.patterns = patterns or [] #TODO 
@@ -52,7 +56,8 @@ class StageTimeline:
             spawn_pos = formation.get_position(i)
             movement_engine = formation.get_movement(i)
             pattern_engine = PatternEngine()
-            
+            size = event.size
+            hp = event.hp
             
             for pattern_name, kwargs in event.patterns:
                 pattern_func = getattr(pattern_engine, pattern_name)
@@ -68,8 +73,8 @@ class StageTimeline:
                 attack=5,
                 pos=spawn_pos,
                 color=(225, 0, 0),
-                size=(10, 10),
-                life_stats=Life(hp=10),
+                size=size,
+                life_stats=Life(hp=hp),
                 monsterai=ai
             )
 
@@ -121,7 +126,7 @@ class DiagonalMovement(BaseMovement):
 
     def update(self, dt):
         if self.owner:
-            self.owner.pos += self.velocity * dt
+            self.owner.pos += self.velocity 
 
 
 class StraightDownFormation:
@@ -155,7 +160,7 @@ class StraightDown(BaseMovement):
         if self.stop_y is not None and self.owner.pos.y >= self.stop_y:
             return 
          
-        self.owner.pos += self.velocity * dt
+        self.owner.pos += self.velocity
 
 class RotationCircleFormation:
     def __init__(self, center, radius, count, rotation_speed, drift_velocity=(0, 0)):
@@ -216,4 +221,99 @@ class RotatingCircle(BaseMovement):
 
         self.owner.pos = pygame.Vector2(x, y)
 
+class UpDownFormation:
+    def __init__(self, start_pos, spacing, speed, direction='down'):
+        self.start_pos = start_pos
+        self.spacing = spacing
+        self.speed = speed
+        self.direction = direction
 
+    def get_position(self, index):
+        x = self.start_pos[0] + index * self.spacing
+        y = self.start_pos[1] + ((-1) ** index) * self.spacing
+        return (x, y)
+    
+    def get_movement(self, index):
+        return UpDownMovement(self.speed, self.direction)
+
+
+class UpDownMovement(BaseMovement):
+    def __init__(self, speed, direction):
+        super().__init__()
+        self.speed = speed
+        self.direction = direction 
+
+        if self.direction == 'left-right':
+           self.velocity = pygame.Vector2(1, 0)
+        else:
+            self.velocity = pygame.Vector2(0, 1) 
+
+    def update(self, dt):
+        super().update(dt)
+        if not self.owner:
+            return
+        self.owner.pos += self.velocity 
+
+class ZigZagFormation:
+    def __init__(self, start_pos, spacing, speed):
+        self.start_pos = start_pos
+        self.spacing = spacing
+        self.speed = speed
+
+    def get_position(self, index):
+        y = self.start_pos[1] + index * self.spacing
+        x = self.start_pos[0] + ((-1) ** index) * self.spacing
+        return (x, y)
+    
+    def get_movement(self, index):
+        return ZigZagMovement(self.speed)
+
+
+class ZigZagMovement(BaseMovement):
+    def __init__(self, speed):
+        super().__init__()
+        self.speed = speed
+        self.velocity = pygame.Vector2(0, 1) 
+
+    def update(self, dt):
+        super().update(dt)
+        if not self.owner:
+            return
+        self.owner.pos += self.velocity 
+
+
+class FlockFormation:
+    def __init__(self, center, radius_center, speed, direction):
+        self.center = pygame.Vector2(center)
+        self.radius = radius_center 
+        self.speed = speed
+        self.direction = direction
+
+    def get_position(self, index):
+        offset = pygame.Vector2(
+            random.uniform(-self.radius, self.radius),
+            random.uniform(-self.radius, self.radius)
+        )
+        return self.center + offset * index
+
+    def get_movement(self, index):
+        return FlockMovement(self.speed, self.direction)
+
+class FlockMovement(BaseMovement):
+    def __init__(self, speed, direction):
+        super().__init__()
+
+        self.speed = speed
+        self.direction = direction
+
+        if self.direction == "left":
+            self.velocity = pygame.Vector2(-1, 0) * speed
+        elif self.direction == "right":
+            self.velocity = pygame.Vector2(1, 0) * speed
+        else:
+            self.velocity = pygame.Vector2(0, 1) * speed
+
+    def update(self, dt):
+        if not self.owner:
+            return
+        self.owner.pos += self.velocity 

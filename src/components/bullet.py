@@ -31,12 +31,21 @@ class YellowBullet:
         pygame.draw.circle(self.image, (255, 255, 255), (6, 6), 3)
         self.id = 'yellow'
 
-
-class BlueBullet: # TODO
+class BlueBullet:
     def __init__(self):
-        self.color = (55, 188, 255) #blue 
-        # pygame.draw.ellipse(screen, "red", [225, 10, 50, 20], 2)
-        pass
+        # draw bullet4
+        self.size = (4, 4)
+        self.radius = 6
+        self.color = (55, 188, 255)
+        self.image = pygame.Surface((self.radius*2, self.radius*2), pygame.SRCALPHA)
+        self.image.fill((0,0,0,0))
+
+        # bullet 
+        pygame.draw.circle(self.image, self.color, (self.radius, self.radius), self.radius, 1)
+        pygame.draw.circle(self.image, self.color, (self.radius, self.radius), self.radius//2, 0)
+        pygame.draw.circle(self.image, (255, 255, 225), (self.radius, self.radius), self.radius//2, 1)
+        
+        self.id = 'blue'
 
 
 class Bullet(pygame.sprite.Sprite):
@@ -64,7 +73,7 @@ class Bullet(pygame.sprite.Sprite):
         if not self.active:
             return
 
-        self.ring_radius += self.speed * dt
+        self.ring_radius += self.speed
         x = self.center.x + math.cos(self.angle) * self.ring_radius
         y = self.center.y + math.sin(self.angle) * self.ring_radius
         self.rect.center = (x, y)

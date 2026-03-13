@@ -58,8 +58,8 @@ class Entity:
 
         # Hit flashes 
         self.flash_state = False
-        self.flash_color = (195, 100, 100)
-        self.flash_timer = 2
+        self.flash_color = (255, 255, 255)
+        self.flash_timer = 1
         self.flash_toggle_timer = 0
 
         # Combat component
@@ -100,12 +100,12 @@ class Entity:
 
         if self.flash_state:
             self.color = self.flash_color
-            self.flash_timer -= dt
+            self.flash_timer -= 0.75
 
         if self.flash_timer <= 0:
             self.flash_state = False
             self.color = self.original_color
-            self.flash_timer = 5
+            self.flash_timer = 1
 
     def render(self, surf: pygame.Surface) -> None:
         """
@@ -166,10 +166,15 @@ class Player(Entity):
         self.movement = movement
         self.blood_effect = [] 
 
-        # Collision setup: Box is 60% of the visual size
-        self.collision = (self.size[0] * 0.6, self.size[1] * 0.6)
-        self.collision_rect = pygame.Rect(0, 0, *self.collision)
+        # Collision setup: Box is 20% of the visual size
+        self.collision_box = (self.size[0] * 0.4, self.size[1] * 0.4)
+        self.collision_rect = pygame.Rect(0, 0, *self.collision_box)
         self.collision_rect.center = self.pos
+
+        # colision effect 
+        self.exploded = False
+        self.invisible = False
+        self.invisible_timer = 0.5 # random timer for invisiblity  
 
         self.rect = pygame.Rect(0, 0, *self.size)
         self.rect.midbottom = self.collision_rect.midbottom
@@ -180,6 +185,7 @@ class Player(Entity):
         self.squash = 0.0
         self.squash_return_speed = 8.0
         self.max_squash = 0.35
+
 
         # movement component
         if self.movement:
@@ -197,6 +203,12 @@ class Player(Entity):
             self.blood_effect.append(
                 BloodParticles(spawn_pos, angle, speed, (174, 31, 17))
             )
+    
+    def collision(self):
+        if not self.exploded:
+            self.game.explosions.append(Explosion(self.collision_rect))
+            self.exploded = True 
+
 
     def update(self, dt: float) -> None:
         """
@@ -206,6 +218,17 @@ class Player(Entity):
         :returns: None
         """
         super().update(dt)
+
+        if self.exploded:
+            self.color = (255,255,255,100) 
+            #self.color = (149,171,34)
+            self.game.collision_on = False
+            self.invisible_timer -= dt
+            if self.invisible_timer <= 0:
+                self.color = (255,255,255, 255)
+                self.game.collision_on = True
+                self.invisible_timer = 0.5
+                self.exploded = False 
 
         if self.is_dead:
             self.game.game_over()
@@ -243,6 +266,8 @@ class Player(Entity):
 
         if self.life_stats:
             self.life_stats.render(surf)
+
+        pygame.draw.rect(surf, (255,0,0), self.collision_rect) # collision_rect
 
         # Apply squash & stretch: wider when shorter, thinner when taller
         squash_amt = self.squash * self.max_squash 

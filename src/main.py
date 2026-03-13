@@ -61,10 +61,12 @@ class Game:
         # Bullet Pooling
         # pre-allocate 1000 bullets 
         self.monster_bullets = pygame.sprite.Group() 
-        for _ in range(500):
+        for _ in range(300):
             self.monster_bullets.add(Bullet(self, design=PurpleBullet()))
-        for _ in range(500):
+        for _ in range(300):
             self.monster_bullets.add(Bullet(self, design=YellowBullet()))
+        for _ in range(300):
+            self.monster_bullets.add(Bullet(self, design=BlueBullet()))
 
         # Object initialization
         # self.platform = Platform()
@@ -73,7 +75,7 @@ class Game:
             "player",
             10,
             [150, 225],
-            (255, 255, 255),
+            (255, 255, 255, 255),
             (6, 10),
             combat=Gun(),
             movement=PlayerMovement(),
@@ -102,7 +104,8 @@ class Game:
             for b in (b for b in self.monster_bullets if b.active):
                 if b.rect.colliderect(self.player.collision_rect):
                     self.player.life_stats.take_damage()
-                    self.player.spawn_blood()
+                    #self.player.spawn_blood()
+                    self.player.collision()
                     b.active = False
                     continue
 
@@ -162,22 +165,8 @@ class Game:
         
         :returns: None
         """
-        # self.font = pygame.font.SysFont(None, 20)
-        # self.display.fill((0, 0, 0))
-
-        #self.collision_on = False
-        #self.can_fire = False
-        #self.game_state = False
-
-        # for e in self.entities:
-        #     e.kill()
-
-        #self.monster_bullets.empty()
-
-        # self.screen.blit(
-        #     self.font.render("Game Over", False, (255, 255, 255)), (100, 100)
-        # )
-        # pygame.display.update()
+        # TODO
+        pass 
 
     def run(self) -> None:
         """
@@ -194,15 +183,15 @@ class Game:
         """
         while self.running:
             self.display.fill((18, 18, 28))
-            dt = self.clock.tick(50) / 1000.0
+            dt = self.clock.tick(60) / 1000.0
 
             # UPDATE OBJECTS 
-            #################
-            self.active_mons_bullet =  [b for b in self.monster_bullets if b.active] #NOTE
+            #----------------
+            self.active_mons_bullet =  [b for b in self.monster_bullets if b.active]
             self.bullets = [b for b in self.bullets if b.active or b.bullet_effect or b.collision_effect]
             self.entities = [e for e in self.entities if not (e.is_dead and e.exploded)]
             self.explosions = [exp for exp in self.explosions if not exp.finished]
-            ###################
+            #-----------------
 
             # Delay screenshake over time
             self.screenshake = max(0, self.screenshake - 1)
@@ -236,14 +225,14 @@ class Game:
             for b in self.active_mons_bullet:
                 b.update(dt) #dt
 
-            self.collisionSystem() #maybe get the list as input TODO?
+            self.collisionSystem() 
 
             # RENDERING 
             for e in self.entities:  
                 e.render(self.display)
 
             for exp in self.explosions:
-                exp.draw(self.display) #TODO render rename
+                exp.render(self.display)
 
             for b in self.active_mons_bullet:
                 b.render(self.display) #dt
